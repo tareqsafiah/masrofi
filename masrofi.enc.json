@@ -1,0 +1,10 @@
+{
+ "v": 1,
+ "alg": "AES-256-GCM/PBKDF2-SHA256",
+ "iter": 150000,
+ "updatedAt": "2026-10-08T15:21:46.513",
+ "salt": "6vSrpTOWoxVJj++kXUml/w==",
+ "nonce": "vF7GCOwrxwaiRBcd",
+ "mac": "rReeqXxd01WjejiOPfsRbQ==",
+ "data": "0N+HTEZVoZgK70jIWBAojZyL5xDHz2dIgRRNYs1yp8qw4cOh4ZCGMalfFQytmdPqFmMFNU55MTtw46w3H8oP2KNDzJvjslMP/WB9ir86pC7m0JQPkhlDDr+vk+vKeT+8UUAURwc0S60Gp+1O6zNQYl8iWueObowVJXDXoswSa6ndImBIDxghy3U5NU9fpSeiOgVbE+iy6DuPNW1oCqz5/Ym0+ye8Xq4dMLUJ0PZ08+Qy7dbC+kN6H6YKHNdIDQiCuTNYWwE/R6QTYZVGguP3/iY7SS6ygJ9C+xC9ijq5UxAUH4yTtmmRrhvJV7rTFhn4zC66H4SZsYH7mL3Uwm8iCJ3NLWoeXMOfAYg8FUTHGLpdtFyhExtk/Cn5CdRKTrBAHy0NRMCg+dbJwZbl8MUfrqVWmsEPl7agvaA="
+}
