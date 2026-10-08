@@ -1,8 +1,6 @@
 name: Build iOS (IPA)
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -32,9 +30,7 @@ jobs:
 
       - name: App icon
         run: |
-          python3 -m venv /tmp/venv
-          /tmp/venv/bin/pip install -q pillow
-          [ -f assets/icon.png ] || /tmp/venv/bin/python tool/make_icon.py
+          bash tool/prepare.sh
           dart run flutter_launcher_icons
 
       - name: Analyze & test

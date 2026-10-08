@@ -17,6 +17,7 @@ class AppColors {
 ThemeData buildTheme() {
   final base = ThemeData(
     useMaterial3: true,
+    fontFamily: 'Plex',
     brightness: Brightness.dark,
     scaffoldBackgroundColor: AppColors.bg,
     colorScheme: const ColorScheme.dark(

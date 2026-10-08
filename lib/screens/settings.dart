@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../format.dart';
@@ -6,6 +7,7 @@ import '../models.dart';
 import '../store.dart';
 import '../theme.dart';
 import '../widgets.dart';
+import 'cloud_setup.dart';
 
 const kCurrencies = ['\$', 'ل.س', '€', '£', 'ر.س', 'د.إ', 'TL'];
 
@@ -94,6 +96,36 @@ class SettingsScreen extends StatelessWidget {
             child: Text('محفظة الادخار تبقى دائماً بالدولار.',
                 style: TextStyle(color: AppColors.muted, fontSize: 12.5)),
           ),
+          const SectionTitle('قاعدة البيانات'),
+          _CloudCard(store: s),
+          const SizedBox(height: 12),
+          AppCard(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Column(children: [
+              _row(
+                context,
+                icon: Icons.copy_all_rounded,
+                iconColor: AppColors.info,
+                title: 'نسخ نسخة احتياطية',
+                value: '',
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: s.exportBackup()));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text(
+                          'تم نسخ بياناتك. الصقها في الملاحظات لحفظها')));
+                },
+              ),
+              const Divider(indent: 56),
+              _row(
+                context,
+                icon: Icons.content_paste_go_rounded,
+                iconColor: AppColors.info,
+                title: 'استيراد من نسخة احتياطية',
+                value: '',
+                onTap: () => _importBackup(context, s),
+              ),
+            ]),
+          ),
           const SectionTitle('البيانات'),
           AppCard(
             padding: const EdgeInsets.symmetric(vertical: 4),
@@ -157,6 +189,136 @@ class SettingsScreen extends StatelessWidget {
       ]),
     );
   }
+}
+
+class _CloudCard extends StatelessWidget {
+  final AppStore store;
+  const _CloudCard({required this.store});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = store;
+    if (!s.cloudEnabled) {
+      return AppCard(
+        onTap: () => openCloudSetup(context),
+        child: const Row(children: [
+          Icon(Icons.cloud_upload_rounded, color: AppColors.warning, size: 30),
+          SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('اربط قاعدة البيانات',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                SizedBox(height: 4),
+                Text(
+                    'بياناتك الآن محفوظة في المتصفح فقط. اربطها بقاعدة بيانات مشفّرة حتى لا تضيع.',
+                    style: TextStyle(
+                        color: AppColors.muted, fontSize: 13, height: 1.5)),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_left_rounded, color: AppColors.muted),
+        ]),
+      );
+    }
+    final (label, color) = switch (s.syncState) {
+      SyncState.ok => ('محفوظ ومتزامن', AppColors.primary),
+      SyncState.syncing => ('جارٍ الحفظ...', AppColors.info),
+      SyncState.error => (s.syncError ?? 'خطأ', AppColors.danger),
+      SyncState.off => ('غير مربوط', AppColors.muted),
+    };
+    final t = s.lastSync;
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.cloud_done_rounded, color: color),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(label,
+                  style: TextStyle(
+                      color: color, fontWeight: FontWeight.w800, fontSize: 15)),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          Text(
+              '${s.cloud!.owner}/${s.cloud!.repo} · مشفّرة AES-256'
+              '${t == null ? '' : '\nآخر مزامنة: ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}'}',
+              style: const TextStyle(
+                  color: AppColors.muted, fontSize: 12.5, height: 1.6)),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: s.syncState == SyncState.syncing ? null : s.syncNow,
+                icon: const Icon(Icons.sync_rounded, size: 18),
+                label: const Text('مزامنة الآن'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => openCloudSetup(context),
+                icon: const Icon(Icons.tune_rounded, size: 18),
+                label: const Text('الإعدادات'),
+              ),
+            ),
+          ]),
+          TextButton(
+            onPressed: () => s.disconnectCloud(),
+            child: const Text('فصل قاعدة البيانات',
+                style: TextStyle(color: AppColors.danger)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+void _importBackup(BuildContext context, AppStore s) {
+  final c = TextEditingController();
+  showAppSheet(
+    context,
+    Builder(builder: (ctx) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('استيراد نسخة احتياطية',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          const Text('الصق النص الذي نسخته سابقاً. سيستبدل البيانات الحالية.',
+              style: TextStyle(color: AppColors.muted)),
+          const SizedBox(height: 16),
+          TextField(
+            controller: c,
+            maxLines: 5,
+            textDirection: TextDirection.ltr,
+            decoration: const InputDecoration(hintText: '{"v":1, ...}'),
+          ),
+          const SizedBox(height: 20),
+          FilledButton(
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(ctx);
+              final nav = Navigator.of(ctx);
+              try {
+                await s.importBackup(c.text);
+                nav.pop();
+                messenger.showSnackBar(
+                    const SnackBar(content: Text('تم استيراد البيانات ✓')));
+              } catch (_) {
+                messenger.showSnackBar(const SnackBar(
+                    content: Text('النص غير صالح، تأكد أنك نسخته كاملاً')));
+              }
+            },
+            child: const Text('استيراد'),
+          ),
+        ],
+      );
+    }),
+  );
 }
 
 void _editNumber(BuildContext context, String title, double current,
@@ -286,6 +448,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 );
               },
               child: const Text('ابدأ'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+              ),
+              onPressed: () => openCloudSetup(context, restore: true),
+              icon: const Icon(Icons.cloud_download_rounded),
+              label: const Text('لدي بيانات سابقة: استعادة من قاعدة البيانات'),
             ),
           ],
         ),

@@ -15,6 +15,8 @@ dependencies:
   shared_preferences: ^2.3.2
   fl_chart: '>=0.69.0 <2.0.0'
   intl: any
+  http: ^1.2.0
+  cryptography: ^2.7.0
 
 dev_dependencies:
   flutter_test:
@@ -24,9 +26,24 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    - family: Plex
+      fonts:
+        - asset: assets/fonts/IBMPlexSansArabic-Regular.ttf
+        - asset: assets/fonts/IBMPlexSansArabic-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/IBMPlexSansArabic-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/IBMPlexSansArabic-Bold.ttf
+          weight: 700
 
 flutter_launcher_icons:
   ios: true
   android: false
   image_path: "assets/icon.png"
   remove_alpha_ios: true
+  web:
+    generate: true
+    image_path: "assets/icon.png"
+    background_color: "#0D1015"
+    theme_color: "#0D1015"

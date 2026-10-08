@@ -9,6 +9,7 @@ import '../store.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'add_expense.dart';
+import 'cloud_setup.dart';
 import 'settings.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -29,6 +30,10 @@ class DashboardScreen extends StatelessWidget {
           toolbarHeight: 64,
           title: const Text('مصروفي'),
           actions: [
+            SyncBadge(
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const SettingsScreen())),
+            ),
             IconButton(
               onPressed: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const SettingsScreen())),
