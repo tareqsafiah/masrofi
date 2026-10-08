@@ -1,0 +1,32 @@
+name: masrofi
+description: "مصروفي - تطبيق شخصي لتتبع المصاريف والادخار"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  provider: ^6.1.2
+  shared_preferences: ^2.3.2
+  fl_chart: '>=0.69.0 <2.0.0'
+  intl: any
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: any
+  flutter_launcher_icons: any
+
+flutter:
+  uses-material-design: true
+
+flutter_launcher_icons:
+  ios: true
+  android: false
+  image_path: "assets/icon.png"
+  remove_alpha_ios: true
