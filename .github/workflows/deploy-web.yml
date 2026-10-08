@@ -41,11 +41,26 @@ jobs:
 
       - name: Analyze & test
         run: |
-          flutter analyze --no-fatal-infos --no-fatal-warnings
-          flutter test
+          set +e
+          flutter analyze --no-fatal-infos --no-fatal-warnings > analyze.txt 2>&1
+          code=$?
+          cat analyze.txt
+          grep -E "error •" analyze.txt | head -30 | sed 's/^ */::error::/'
+          [ $code -eq 0 ] || exit $code
+          flutter test > test.txt 2>&1
+          code=$?
+          cat test.txt
+          grep -E "Error:|error:" test.txt | head -30 | sed 's/^ */::error::/'
+          exit $code
 
       - name: Build web
-        run: flutter build web --release --base-href /masrofi/ --no-web-resources-cdn
+        run: |
+          set +e
+          flutter build web --release --base-href /masrofi/ --no-web-resources-cdn > build.txt 2>&1
+          code=$?
+          cat build.txt
+          [ $code -eq 0 ] || grep -E "Error|error" build.txt | head -30 | sed 's/^ */::error::/'
+          exit $code
 
       - uses: actions/upload-pages-artifact@v3
         with:
