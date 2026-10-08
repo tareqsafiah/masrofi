@@ -1,0 +1,58 @@
+name: Build iOS (IPA)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate iOS project
+        run: flutter create --platforms=ios --org com.tareq .
+
+      - name: App name & Arabic locale
+        run: |
+          plutil -replace CFBundleDisplayName -string "مصروفي" ios/Runner/Info.plist
+          plutil -replace CFBundleName -string "مصروفي" ios/Runner/Info.plist
+          plutil -remove CFBundleLocalizations ios/Runner/Info.plist || true
+          plutil -insert CFBundleLocalizations -json '["ar","en"]' ios/Runner/Info.plist
+
+      - name: Get packages
+        run: flutter pub get
+
+      - name: App icon
+        run: |
+          python3 -m venv /tmp/venv
+          /tmp/venv/bin/pip install -q pillow
+          [ -f assets/icon.png ] || /tmp/venv/bin/python tool/make_icon.py
+          dart run flutter_launcher_icons
+
+      - name: Analyze & test
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings
+          flutter test
+
+      - name: Build (unsigned)
+        run: flutter build ios --release --no-codesign
+
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qry masrofi.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: masrofi-ipa
+          path: masrofi.ipa
+          retention-days: 30
