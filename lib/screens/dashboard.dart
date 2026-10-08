@@ -321,7 +321,7 @@ class _StatTile extends StatelessWidget {
                     fontSize: 20, fontWeight: FontWeight.w800)),
           ),
           SizedBox(
-            height: 17,
+            height: 21,
             child: sub == null
                 ? null
                 : Text(sub!,

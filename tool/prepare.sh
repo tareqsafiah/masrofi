@@ -2,9 +2,10 @@
 # يجهّز الخطوط والأيقونة قبل البناء
 set -e
 mkdir -p assets/fonts
-for w in Regular Medium SemiBold Bold; do
-  f="assets/fonts/IBMPlexSansArabic-$w.ttf"
-  [ -f "$f" ] || curl -sSL -o "$f" "https://raw.githubusercontent.com/google/fonts/main/ofl/ibmplexsansarabic/IBMPlexSansArabic-$w.ttf"
+BASE="https://raw.githubusercontent.com/notofonts/notofonts.github.io/main/fonts/NotoKufiArabic/hinted/ttf"
+for w in Regular Medium SemiBold Bold ExtraBold Black; do
+  f="assets/fonts/NotoKufiArabic-$w.ttf"
+  [ -f "$f" ] || curl -fsSL -o "$f" "$BASE/NotoKufiArabic-$w.ttf"
 done
 if [ ! -f assets/icon.png ]; then
   python3 -m venv /tmp/venv

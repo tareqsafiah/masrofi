@@ -27,15 +27,19 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   fonts:
-    - family: Plex
+    - family: Kufi
       fonts:
-        - asset: assets/fonts/IBMPlexSansArabic-Regular.ttf
-        - asset: assets/fonts/IBMPlexSansArabic-Medium.ttf
+        - asset: assets/fonts/NotoKufiArabic-Regular.ttf
+        - asset: assets/fonts/NotoKufiArabic-Medium.ttf
           weight: 500
-        - asset: assets/fonts/IBMPlexSansArabic-SemiBold.ttf
+        - asset: assets/fonts/NotoKufiArabic-SemiBold.ttf
           weight: 600
-        - asset: assets/fonts/IBMPlexSansArabic-Bold.ttf
+        - asset: assets/fonts/NotoKufiArabic-Bold.ttf
           weight: 700
+        - asset: assets/fonts/NotoKufiArabic-ExtraBold.ttf
+          weight: 800
+        - asset: assets/fonts/NotoKufiArabic-Black.ttf
+          weight: 900
 
 flutter_launcher_icons:
   ios: true
