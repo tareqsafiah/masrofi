@@ -163,7 +163,7 @@ class SettingsScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           const Center(
-            child: Text('مصروفي · نسخة شخصية 1.0\nجميع البيانات محفوظة على جهازك فقط',
+            child: Text('مصروفي · نسخة شخصية 1.1\nبياناتك مشفّرة ولا يمكن لأحد غيرك قراءتها',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.muted, fontSize: 12, height: 1.6)),
           ),
@@ -385,7 +385,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           padding: const EdgeInsets.all(24),
           children: [
             const SizedBox(height: 30),
-            Container(
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Container(
               width: 72,
               height: 72,
               decoration: BoxDecoration(
@@ -395,6 +397,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
               child: const Icon(Icons.savings_rounded,
                   size: 38, color: Color(0xFF04140E)),
+            ),
             ),
             const SizedBox(height: 24),
             const Text('أهلاً بك في مصروفي',

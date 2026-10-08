@@ -266,9 +266,10 @@ class AppStore extends ChangeNotifier {
   Future<bool> connectCloud(CloudConfig c) async {
     final db = CloudDb(c);
     final remote = await db.pull(); // يرمي خطأ عند كلمة سر خاطئة
-    cloud = c;
-    _db = db;
-    await _prefs.setString(_kCloud, jsonEncode(c.toJson()));
+    if (remote == null && c.token.isEmpty) {
+      throw CloudException(
+          'لا توجد بيانات محفوظة في قاعدة البيانات بعد. أدخل رمز الوصول لبدء الحفظ');
+    }
     var restored = false;
     if (remote != null &&
         (remote.updatedAt.isAfter(updatedAt) || expenses.isEmpty)) {
@@ -277,6 +278,10 @@ class AppStore extends ChangeNotifier {
     } else {
       await db.push(toSnapshot());
     }
+    // نحفظ الإعدادات فقط بعد نجاح الاتصال
+    cloud = c;
+    _db = db;
+    await _prefs.setString(_kCloud, jsonEncode(c.toJson()));
     syncState = SyncState.ok;
     syncError = null;
     lastSync = DateTime.now();
