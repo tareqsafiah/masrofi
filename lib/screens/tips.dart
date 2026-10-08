@@ -7,6 +7,7 @@ import '../store.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'dashboard.dart';
+import 'debts.dart';
 
 class TipsScreen extends StatefulWidget {
   const TipsScreen({super.key});
@@ -41,6 +42,42 @@ class _TipsScreenState extends State<TipsScreen> {
             ),
             const SizedBox(height: 16),
             if (_tab == 0) ...[
+              AppCard(
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => DebtsScreen(
+                            initialTab: s.activeDebts.isEmpty ? 2 : 1))),
+                padding: const EdgeInsets.all(16),
+                child: Row(children: [
+                  const Icon(Icons.account_balance_rounded,
+                      color: AppColors.danger),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                            s.activeDebts.isEmpty
+                                ? 'خطة عدم الاستدانة'
+                                : 'خطة التخلص من الديون',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w800, fontSize: 15)),
+                        const SizedBox(height: 3),
+                        Text(
+                            s.activeDebts.isEmpty
+                                ? 'صندوق الطوارئ، فحص وضعك، وقواعد تحميك من الدين'
+                                : 'قارن بين طريقتي السداد واعرف متى تتحرر من ديونك',
+                            style: const TextStyle(
+                                color: AppColors.muted, fontSize: 12.5)),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_left_rounded,
+                      color: AppColors.muted),
+                ]),
+              ),
+              const SizedBox(height: 12),
               if (potential > 0)
                 AppCard(
                   padding: const EdgeInsets.all(20),

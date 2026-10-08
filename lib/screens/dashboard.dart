@@ -11,6 +11,7 @@ import '../theme.dart';
 import '../widgets.dart';
 import 'add_expense.dart';
 import 'cloud_setup.dart';
+import 'debts.dart';
 import 'settings.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -100,6 +101,8 @@ class DashboardScreen extends StatelessWidget {
                 ),
               ),
             ]),
+            const SizedBox(height: 12),
+            const DebtsTile(),
             if (s.isCurrentMonth && m.count > 0) ...[
               const SizedBox(height: 12),
               _ProjectionCard(m: m, store: s),

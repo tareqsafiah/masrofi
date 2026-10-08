@@ -231,6 +231,8 @@ const List<Category> kCategories = [
       false),
   Category('gifts', 'هدايا ومناسبات', Icons.card_giftcard_rounded,
       Color(0xFFF472B6), false),
+  Category('debt', 'سداد ديون', Icons.account_balance_rounded,
+      Color(0xFFF87171), true),
   Category('other', 'أخرى', Icons.more_horiz_rounded, Color(0xFFA3A3A3), true),
 ];
 
@@ -246,3 +248,110 @@ List<Category> get allCategories => [
 
 Category categoryById(String id) =>
     allCategories.firstWhere((c) => c.id == id, orElse: () => kCategories.last);
+
+/// دين على المستخدم (بالليرة/عملة المصاريف أو بالدولار)
+class Debt {
+  final String id;
+  final String name; // لمن الدين أو وصفه
+  final bool usd; // true = بالدولار، false = بعملة المصاريف
+  final double amount; // أصل الدين (أو الرصيد عند الإضافة)
+  final double rate; // الفائدة السنوية %
+  final double minPayment; // القسط الشهري المتفق عليه (0 = لا يوجد)
+  final DateTime date;
+  final DateTime? due; // موعد السداد النهائي (اختياري)
+  final String note;
+
+  Debt({
+    required this.id,
+    required this.name,
+    required this.usd,
+    required this.amount,
+    this.rate = 0,
+    this.minPayment = 0,
+    required this.date,
+    this.due,
+    this.note = '',
+  });
+
+  Debt copyWith({
+    String? name,
+    double? amount,
+    double? rate,
+    double? minPayment,
+    DateTime? due,
+    bool clearDue = false,
+    String? note,
+  }) =>
+      Debt(
+        id: id,
+        name: name ?? this.name,
+        usd: usd,
+        amount: amount ?? this.amount,
+        rate: rate ?? this.rate,
+        minPayment: minPayment ?? this.minPayment,
+        date: date,
+        due: clearDue ? null : (due ?? this.due),
+        note: note ?? this.note,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'usd': usd,
+        'amount': amount,
+        'rate': rate,
+        'min': minPayment,
+        'date': date.toIso8601String(),
+        if (due != null) 'due': due!.toIso8601String(),
+        'note': note,
+      };
+
+  factory Debt.fromJson(Map<String, dynamic> j) => Debt(
+        id: j['id'] as String,
+        name: j['name'] as String,
+        usd: (j['usd'] ?? false) as bool,
+        amount: (j['amount'] as num).toDouble(),
+        rate: ((j['rate'] ?? 0) as num).toDouble(),
+        minPayment: ((j['min'] ?? 0) as num).toDouble(),
+        date: DateTime.parse(j['date'] as String),
+        due: j['due'] == null ? null : DateTime.parse(j['due'] as String),
+        note: (j['note'] ?? '') as String,
+      );
+}
+
+/// دفعة سداد لدين. linkId: المصروف أو حركة المحفظة الناتجة عنها
+class DebtPayment {
+  final String id;
+  final String debtId;
+  final double amount; // بعملة الدين
+  final DateTime date;
+  final String? linkId;
+  final String source; // budget | wallet | none
+
+  DebtPayment({
+    required this.id,
+    required this.debtId,
+    required this.amount,
+    required this.date,
+    this.linkId,
+    this.source = 'budget',
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'debt': debtId,
+        'amount': amount,
+        'date': date.toIso8601String(),
+        if (linkId != null) 'link': linkId,
+        'src': source,
+      };
+
+  factory DebtPayment.fromJson(Map<String, dynamic> j) => DebtPayment(
+        id: j['id'] as String,
+        debtId: j['debt'] as String,
+        amount: (j['amount'] as num).toDouble(),
+        date: DateTime.parse(j['date'] as String),
+        linkId: j['link'] as String?,
+        source: (j['src'] ?? 'budget') as String,
+      );
+}

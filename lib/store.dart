@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' hide Category;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'cloud.dart';
+import 'debt_plan.dart';
 import 'format.dart';
 import 'models.dart';
 import 'rates.dart';
@@ -61,6 +62,8 @@ class AppStore extends ChangeNotifier {
   static const _kExtra = 'extra_income_v1';
   static const _kCats = 'categories_v1';
   static const _kRates = 'rates_v1';
+  static const _kDebts = 'debts_v1';
+  static const _kDebtPay = 'debt_payments_v1';
 
   late SharedPreferences _prefs;
 
@@ -72,6 +75,8 @@ class AppStore extends ChangeNotifier {
 
   /// دخل إضافي (ثمن بيع دولار/ذهب أو دخل يدوي)
   List<IncomeEntry> extraIncome = [];
+  List<Debt> debts = [];
+  List<DebtPayment> debtPayments = [];
 
   // ---------------- أسعار السوق ----------------
   Rates? rates;
@@ -148,6 +153,18 @@ class AppStore extends ChangeNotifier {
         : (jsonDecode(x) as List)
             .map((e) => IncomeEntry.fromJson(e as Map<String, dynamic>))
             .toList();
+    final dj = _prefs.getString(_kDebts);
+    debts = dj == null
+        ? []
+        : (jsonDecode(dj) as List)
+            .map((e) => Debt.fromJson(e as Map<String, dynamic>))
+            .toList();
+    final pj = _prefs.getString(_kDebtPay);
+    debtPayments = pj == null
+        ? []
+        : (jsonDecode(pj) as List)
+            .map((e) => DebtPayment.fromJson(e as Map<String, dynamic>))
+            .toList();
     final cats = _prefs.getString(_kCats);
     customCategories = cats == null
         ? []
@@ -207,6 +224,14 @@ class AppStore extends ChangeNotifier {
     _touch();
   }
 
+  Future<void> _saveDebts() async {
+    await _prefs.setString(
+        _kDebts, jsonEncode(debts.map((e) => e.toJson()).toList()));
+    await _prefs.setString(_kDebtPay,
+        jsonEncode(debtPayments.map((e) => e.toJson()).toList()));
+    _touch();
+  }
+
   Future<void> _saveCats() async {
     await _prefs.setString(_kCats,
         jsonEncode(customCategories.map((e) => e.toJson()).toList()));
@@ -237,6 +262,8 @@ class AppStore extends ChangeNotifier {
         'incomes': incomes,
         'extraIncome': extraIncome.map((e) => e.toJson()).toList(),
         'categories': customCategories.map((e) => e.toJson()).toList(),
+        'debts': debts.map((e) => e.toJson()).toList(),
+        'debtPayments': debtPayments.map((e) => e.toJson()).toList(),
         'settings': _settingsJson,
       };
 
@@ -246,6 +273,8 @@ class AppStore extends ChangeNotifier {
     await _prefs.setString(_kIncomes, jsonEncode(d['incomes'] ?? {}));
     await _prefs.setString(_kExtra, jsonEncode(d['extraIncome'] ?? []));
     await _prefs.setString(_kCats, jsonEncode(d['categories'] ?? []));
+    await _prefs.setString(_kDebts, jsonEncode(d['debts'] ?? []));
+    await _prefs.setString(_kDebtPay, jsonEncode(d['debtPayments'] ?? []));
     await _prefs.setString(_kSettings, jsonEncode(d['settings'] ?? {}));
     await _prefs.setString(
         _kUpdated, (d['updatedAt'] ?? DateTime.now().toIso8601String()) as String);
@@ -471,6 +500,194 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ---------------- الديون ----------------
+  /// سعر الدولار بعملة المصاريف (للتحويل)، null إن لم يتوفر
+  double? get usdToLocal =>
+      currency == '\$' ? 1 : marketPrice(Asset.usd, buy: true);
+
+  double paidFor(String debtId) => debtPayments
+      .where((p) => p.debtId == debtId)
+      .fold<double>(0, (s, p) => s + p.amount);
+
+  double remaining(Debt d) {
+    final r = d.amount - paidFor(d.id);
+    return r < 0 ? 0 : r;
+  }
+
+  List<Debt> get activeDebts => debts.where((d) => remaining(d) > 0.005).toList();
+
+  /// قيمة مبلغ بعملة الدين محوّلاً لعملة المصاريف
+  double? toLocal(Debt d, double v) {
+    if (!d.usd || currency == '\$') return v;
+    final r = usdToLocal;
+    return r == null ? null : v * r;
+  }
+
+  /// مجموع الديون المتبقية بعملة المصاريف (null عند نقص سعر الصرف)
+  double? get totalDebtLocal {
+    double s = 0;
+    for (final d in debts) {
+      final v = toLocal(d, remaining(d));
+      if (v == null) return null;
+      s += v;
+    }
+    return s;
+  }
+
+  double? get totalDebtOriginalLocal {
+    double s = 0;
+    for (final d in debts) {
+      final v = toLocal(d, d.amount);
+      if (v == null) return null;
+      s += v;
+    }
+    return s;
+  }
+
+  /// مجموع الأقساط الشهرية الدنيا للديون القائمة بعملة المصاريف
+  double? get monthlyMinPaymentsLocal {
+    double s = 0;
+    for (final d in activeDebts) {
+      final v = toLocal(d, d.minPayment);
+      if (v == null) return null;
+      s += v;
+    }
+    return s;
+  }
+
+  List<DebtPayment> paymentsFor(String debtId) =>
+      debtPayments.where((p) => p.debtId == debtId).toList()
+        ..sort((a, b) => b.date.compareTo(a.date));
+
+  /// إضافة دين. addToBudget: إضافة المبلغ المستلَم لميزانية هذا الشهر
+  void addDebt(Debt d, {bool addToBudget = false}) {
+    debts.add(d);
+    if (addToBudget) {
+      final local = toLocal(d, d.amount);
+      if (local != null) {
+        extraIncome.add(IncomeEntry(
+            id: '${d.id}_loan',
+            amount: local,
+            date: d.date,
+            note: 'دين: ${d.name}'));
+        _saveExtra();
+      }
+    }
+    _saveDebts();
+    notifyListeners();
+  }
+
+  void updateDebt(Debt d) {
+    final i = debts.indexWhere((x) => x.id == d.id);
+    if (i >= 0) debts[i] = d;
+    _saveDebts();
+    notifyListeners();
+  }
+
+  void deleteDebt(String id) {
+    for (final p in debtPayments.where((p) => p.debtId == id).toList()) {
+      _removePaymentLinks(p);
+    }
+    debtPayments.removeWhere((p) => p.debtId == id);
+    debts.removeWhere((d) => d.id == id);
+    extraIncome.removeWhere((e) => e.id == '${id}_loan');
+    _saveExtra();
+    _saveExpenses();
+    _saveWallet();
+    _saveDebts();
+    notifyListeners();
+  }
+
+  /// تسجيل دفعة. source: budget (مصروف بفئة "سداد ديون")،
+  /// wallet (من محفظة الدولار)، none (تسجيل فقط).
+  /// localRate: سعر الدولار بعملة المصاريف عند الدفع من الميزانية لدين بالدولار.
+  void payDebt(Debt d, double amount,
+      {required String source, double? localRate}) {
+    final id = newId();
+    String? link;
+    if (source == 'budget') {
+      final local = d.usd && currency != '\$'
+          ? (localRate == null ? null : amount * localRate)
+          : amount;
+      if (local != null) {
+        link = '${id}_exp';
+        expenses.add(Expense(
+          id: link,
+          amount: local,
+          categoryId: 'debt',
+          date: DateTime.now(),
+          note: 'سداد: ${d.name}',
+          essential: true,
+        ));
+        _sort();
+        _saveExpenses();
+      }
+    } else if (source == 'wallet' && d.usd) {
+      link = '${id}_w';
+      wallet.add(WalletTx(
+        id: link,
+        amount: -amount,
+        date: DateTime.now(),
+        note: 'سداد دين: ${d.name}',
+        asset: 'usd',
+      ));
+      _sort();
+      _saveWallet();
+    }
+    debtPayments.add(DebtPayment(
+      id: id,
+      debtId: d.id,
+      amount: amount,
+      date: DateTime.now(),
+      linkId: link,
+      source: source,
+    ));
+    _saveDebts();
+    notifyListeners();
+  }
+
+  void _removePaymentLinks(DebtPayment p) {
+    if (p.linkId == null) return;
+    expenses.removeWhere((e) => e.id == p.linkId);
+    wallet.removeWhere((w) => w.id == p.linkId);
+  }
+
+  void deleteDebtPayment(String id) {
+    final p = debtPayments.where((x) => x.id == id).firstOrNull;
+    if (p == null) return;
+    _removePaymentLinks(p);
+    debtPayments.removeWhere((x) => x.id == id);
+    _saveExpenses();
+    _saveWallet();
+    _saveDebts();
+    notifyListeners();
+  }
+
+  /// يحوّل الديون القائمة لعملة المصاريف لاستخدامها في محاكاة الخطة
+  List<PlanDebt>? planDebts() {
+    final out = <PlanDebt>[];
+    for (final d in activeDebts) {
+      final b = toLocal(d, remaining(d));
+      final m = toLocal(d, d.minPayment);
+      if (b == null || m == null) return null;
+      out.add(PlanDebt(d.id, d.name, b, d.rate, m));
+    }
+    return out;
+  }
+
+  /// متوسط الفائض الشهري (الدخل - المصاريف) لآخر 3 أشهر فيها بيانات
+  double get avgMonthlySurplus {
+    final ms = lastMonths(4).where((m) => m.count > 0).toList();
+    if (ms.isEmpty) return 0;
+    return ms.fold<double>(0, (s, m) => s + m.saved) / ms.length;
+  }
+
+  /// مبلغ إضافي مقترح للسداد: نصف الفائض الشهري المعتاد
+  double get suggestedExtraPayment {
+    final v = avgMonthlySurplus * 0.5;
+    return v > 0 ? v : 0;
+  }
+
   // ---------------- الفئات ----------------
   void addCategory(String name, int icon, int color, bool essential) {
     customCategories = [
@@ -602,6 +819,8 @@ class AppStore extends ChangeNotifier {
     wallet.clear();
     incomes.clear();
     extraIncome.clear();
+    debts.clear();
+    debtPayments.clear();
     customCategories = [];
     final c = _prefs.getString(_kCloud);
     await _prefs.clear();

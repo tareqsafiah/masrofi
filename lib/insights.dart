@@ -241,6 +241,36 @@ List<Insight> buildInsights(AppStore s) {
     }
   }
 
+  // ---- الديون ----
+  final debtTotal = s.totalDebtLocal;
+  if (s.activeDebts.isNotEmpty && debtTotal != null) {
+    final mins = s.monthlyMinPaymentsLocal ?? 0;
+    final dti = m.income > 0 ? mins / m.income : 0.0;
+    if (dti > 0.36) {
+      out.add(Insight(
+        InsightLevel.bad,
+        'أقساط الديون ${pct(dti)} من دخلك',
+        'هذه نسبة خطرة. لا تأخذ أي دين جديد، ووجّه كل فائض للسداد حسب خطة الديون.',
+        Icons.account_balance_rounded,
+      ));
+    } else {
+      out.add(Insight(
+        InsightLevel.warn,
+        'عليك ديون بقيمة ${f(debtTotal)}',
+        'افتح خطة السداد في شاشة الديون لتعرف أسرع طريقة للتخلص منها وموعد تحررك.',
+        Icons.account_balance_rounded,
+      ));
+    }
+    if (s.activeDebts.any((d) => d.usd) && s.isSyp) {
+      out.add(const Insight(
+        InsightLevel.info,
+        'انتبه للديون بالدولار',
+        'كل ارتفاع في سعر الدولار يزيد قيمة دينك بالليرة. سدّدها أولاً إن أمكن، أو من مدخراتك بالدولار.',
+        Icons.currency_exchange_rounded,
+      ));
+    }
+  }
+
   // ترتيب: الأخطر أولاً
   out.sort((a, b) => b.level.index.compareTo(a.level.index));
   return out;
