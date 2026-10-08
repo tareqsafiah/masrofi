@@ -1,3 +1,5 @@
+import 'dart:ui' show PlatformDispatcher;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -15,6 +17,23 @@ import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // إظهار الأخطاء بدل شاشة فارغة، وطباعتها في الـ console
+  FlutterError.onError = (d) {
+    // ignore: avoid_print
+    print('FLUTTER ERROR: ${d.exceptionAsString()}\n${d.stack}');
+  };
+  PlatformDispatcher.instance.onError = (e, s) {
+    // ignore: avoid_print
+    print('UNCAUGHT: $e\n$s');
+    return true;
+  };
+  ErrorWidget.builder = (d) => Container(
+        color: const Color(0xFF3A1010),
+        padding: const EdgeInsets.all(12),
+        child: Text('خطأ: ${d.exceptionAsString()}',
+            textDirection: TextDirection.ltr,
+            style: const TextStyle(color: Colors.white, fontSize: 12)),
+      );
   SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
   final store = AppStore();
   await store.load();

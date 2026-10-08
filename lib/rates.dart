@@ -97,7 +97,10 @@ class RatesService {
         return Rates.fromJson(
             jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>);
       }
-    } catch (_) {}
+    } catch (e) {
+      // ignore: avoid_print
+      print('rates primary failed: $e');
+    }
     try {
       final r = await http
           .get(Uri.parse(_fallback))

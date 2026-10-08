@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../format.dart';
 import '../models.dart';
+import '../rates.dart';
 import '../store.dart';
 import '../theme.dart';
 import '../widgets.dart';
@@ -394,10 +395,115 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final _income = TextEditingController();
   final _wallet = TextEditingController();
+  final _syp = TextEditingController();
+  final _rate = TextEditingController();
+  bool _rateEdited = false;
   String _cur = '\$';
+
+  bool get _isSyp => _cur == 'ل.س' || _cur == 'ل.س ق';
+
+  /// سعر مبيع الدولار من الموقع بوحدة الليرة المختارة
+  double? _siteRate(AppStore s) {
+    final r = s.rates;
+    if (r == null || !_isSyp) return null;
+    return _cur == 'ل.س' ? r.usdSell / 100 : r.usdSell;
+  }
+
+  String _fmtRate(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+
+  @override
+  void dispose() {
+    _income.dispose();
+    _wallet.dispose();
+    _syp.dispose();
+    _rate.dispose();
+    super.dispose();
+  }
+
+  Widget _buyUsdCard(AppStore s) {
+    final site = _siteRate(s);
+    if (!_rateEdited && site != null) {
+      final txt = _fmtRate(site);
+      if (_rate.text != txt) _rate.text = txt;
+    }
+    final syp = parseAmount(_syp.text) ?? 0;
+    final rate = parseAmount(_rate.text) ?? 0;
+    final usdOut = rate > 0 ? syp / rate : 0.0;
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(children: [
+            Icon(Icons.currency_exchange_rounded, color: AppColors.primary),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text('شراء مدخرات بالدولار (اختياري)',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          const Text('أدخل المبلغ بالليرة الذي تريد تحويله إلى دولار.',
+              style: TextStyle(color: AppColors.muted, fontSize: 12.5)),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _syp,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) => setState(() {}),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            decoration:
+                InputDecoration(labelText: 'المبلغ بالليرة', suffixText: _cur),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _rate,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) => setState(() => _rateEdited = true),
+            decoration: InputDecoration(
+              labelText: 'سعر شراء الدولار',
+              suffixText: '$_cur / \$',
+              helperText: site == null
+                  ? (s.ratesLoading
+                      ? 'جارٍ جلب السعر من الليرة اليوم...'
+                      : 'تعذّر جلب السعر، أدخله يدوياً')
+                  : _rateEdited
+                      ? 'سعر معدّل يدوياً'
+                      : 'سعر المبيع في دمشق من موقع الليرة اليوم',
+            ),
+          ),
+          if (_rateEdited && site != null)
+            TextButton.icon(
+              onPressed: () => setState(() => _rateEdited = false),
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: Text('استخدام سعر الموقع (${_fmtRate(site)})'),
+            ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(children: [
+              const Text('ستحصل على',
+                  style: TextStyle(color: AppColors.muted)),
+              const Spacer(),
+              Text(usd(usdOut),
+                  style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 20)),
+            ]),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final store = context.watch<AppStore>();
     return Scaffold(
       body: SafeArea(
         child: ListView(
@@ -469,8 +575,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             const SizedBox(height: 14),
             AmountField(
                 controller: _wallet,
-                label: 'مدّخراتك الحالية بالدولار (اختياري)',
+                label: 'دولارات تملكها حالياً (اختياري)',
                 suffix: 'USD'),
+            if (_isSyp) ...[
+              const SizedBox(height: 16),
+              _buyUsdCard(store),
+            ],
             const SizedBox(height: 30),
             FilledButton(
               onPressed: () {
@@ -486,8 +596,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 s.updateSettings(
                   currency: _cur,
                   defaultIncome: parseAmount(_income.text) ?? 0,
-                  onboarded: true,
                 );
+                final syp = parseAmount(_syp.text) ?? 0;
+                final rate = parseAmount(_rate.text) ?? 0;
+                if (_isSyp && syp > 0 && rate > 0) {
+                  s.trade(Asset.usd,
+                      buy: true,
+                      qty: syp / rate,
+                      price: rate,
+                      note: 'شراء مدخرات عند البدء');
+                }
+                s.updateSettings(onboarded: true);
               },
               child: const Text('ابدأ'),
             ),

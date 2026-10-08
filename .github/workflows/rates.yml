@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths: ['tool/fetch_rates.py', '.github/workflows/rates.yml']
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '13,43 * * * *'
   workflow_dispatch:
 
 permissions:
