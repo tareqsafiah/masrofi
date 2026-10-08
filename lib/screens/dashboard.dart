@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../format.dart';
 import '../insights.dart';
 import '../models.dart';
+import '../rates.dart';
 import '../store.dart';
 import '../theme.dart';
 import '../widgets.dart';
@@ -89,8 +90,11 @@ class DashboardScreen extends StatelessWidget {
               Expanded(
                 child: _StatTile(
                   icon: Icons.account_balance_wallet_rounded,
-                  label: 'محفظة الدولار',
-                  value: usd(s.walletBalance),
+                  label: 'المدخرات',
+                  value: s.totalSavingsValue != null &&
+                          (s.isSyp || s.holding(Asset.gold21) + s.holding(Asset.gold18) > 0)
+                      ? money(s.totalSavingsValue!, cur, decimals: false)
+                      : usd(s.walletBalance),
                   color: AppColors.primary,
                   onTap: () => goTo(3),
                 ),
@@ -219,6 +223,26 @@ class _HeroCard extends StatelessWidget {
               _heroItem('المصاريف', money(m.spent, currency, decimals: false)),
             ],
           ),
+          if (m.extraIncome > 0 || m.invested > 0) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                [
+                  if (m.extraIncome > 0)
+                    'منها دخل إضافي ${money(m.extraIncome, currency, decimals: false)}',
+                  if (m.invested > 0)
+                    'حُوّل للمدخرات ${money(m.invested, currency, decimals: false)}',
+                ].join(' · '),
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85), fontSize: 12.5),
+              ),
+            ),
+          ],
         ],
       ),
     );

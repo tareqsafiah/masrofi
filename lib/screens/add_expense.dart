@@ -7,6 +7,7 @@ import '../models.dart';
 import '../store.dart';
 import '../theme.dart';
 import '../widgets.dart';
+import 'categories.dart';
 
 Future<void> openExpenseSheet(BuildContext context, {Expense? existing}) {
   return showAppSheet(context, ExpenseForm(existing: existing));
@@ -128,7 +129,7 @@ class _ExpenseFormState extends State<ExpenseForm> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            for (final c in kCategories)
+            for (final c in allCategories)
               _CatChip(
                 cat: c,
                 selected: c.id == _cat,
@@ -137,6 +138,25 @@ class _ExpenseFormState extends State<ExpenseForm> {
                   _essential = c.defaultEssential;
                 }),
               ),
+            ActionChip(
+              avatar: const Icon(Icons.add_rounded,
+                  size: 18, color: AppColors.primary),
+              label: const Text('فئة جديدة'),
+              backgroundColor: AppColors.surface2,
+              side: BorderSide(
+                  color: AppColors.primary.withValues(alpha: 0.4)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+              onPressed: () async {
+                final id = await openNewCategorySheet(context);
+                if (id != null && mounted) {
+                  setState(() {
+                    _cat = id;
+                    _essential = categoryById(id).defaultEssential;
+                  });
+                }
+              },
+            ),
           ],
         ),
         const SizedBox(height: 18),

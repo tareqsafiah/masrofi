@@ -7,11 +7,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'cloud.dart';
 import 'format.dart';
 import 'models.dart';
+import 'rates.dart';
 
 /// ملخّص شهر واحد
 class MonthStats {
   final DateTime month;
   final double income;
+  final double baseIncome;
+  final double extraIncome;
+  final double invested;
   final double spent;
   final double essential;
   final double waste;
@@ -21,16 +25,21 @@ class MonthStats {
 
   MonthStats({
     required this.month,
-    required this.income,
+    required this.baseIncome,
+    required this.extraIncome,
+    required this.invested,
     required this.spent,
     required this.essential,
     required this.waste,
     required this.byCategory,
     required this.daysCounted,
     required this.count,
-  });
+  }) : income = baseIncome + extraIncome;
 
   double get saved => income - spent;
+
+  /// النقد المتبقي بعد المصاريف وشراء المدخرات
+  double get cashLeft => income - spent - invested;
   double get savingsRate => income > 0 ? saved / income : 0;
   double get dailyAvg => daysCounted > 0 ? spent / daysCounted : 0;
   double get wasteRatio => spent > 0 ? waste / spent : 0;
@@ -49,6 +58,9 @@ class AppStore extends ChangeNotifier {
   static const _kIncomes = 'incomes_v1';
   static const _kCloud = 'cloud_v1';
   static const _kUpdated = 'updated_at_v1';
+  static const _kExtra = 'extra_income_v1';
+  static const _kCats = 'categories_v1';
+  static const _kRates = 'rates_v1';
 
   late SharedPreferences _prefs;
 
@@ -57,6 +69,13 @@ class AppStore extends ChangeNotifier {
 
   /// دخل مخصّص لكل شهر (المفتاح yyyy-MM)
   Map<String, double> incomes = {};
+
+  /// دخل إضافي (ثمن بيع دولار/ذهب أو دخل يدوي)
+  List<IncomeEntry> extraIncome = [];
+
+  // ---------------- أسعار السوق ----------------
+  Rates? rates;
+  bool ratesLoading = false;
 
   // الإعدادات
   String currency = '\$';
@@ -84,6 +103,13 @@ class AppStore extends ChangeNotifier {
   Future<void> load() async {
     _prefs = await SharedPreferences.getInstance();
     _readLocal();
+    final r = _prefs.getString(_kRates);
+    if (r != null) {
+      try {
+        rates = Rates.fromJson(jsonDecode(r) as Map<String, dynamic>);
+      } catch (_) {}
+    }
+    refreshRates();
     final c = _prefs.getString(_kCloud);
     if (c != null) {
       cloud = CloudConfig.fromJson(jsonDecode(c) as Map<String, dynamic>);
@@ -116,6 +142,18 @@ class AppStore extends ChangeNotifier {
       incomes = (jsonDecode(i) as Map<String, dynamic>)
           .map((k, v) => MapEntry(k, (v as num).toDouble()));
     }
+    final x = _prefs.getString(_kExtra);
+    extraIncome = x == null
+        ? []
+        : (jsonDecode(x) as List)
+            .map((e) => IncomeEntry.fromJson(e as Map<String, dynamic>))
+            .toList();
+    final cats = _prefs.getString(_kCats);
+    customCategories = cats == null
+        ? []
+        : (jsonDecode(cats) as List)
+            .map((e) => Category.fromJson(e as Map<String, dynamic>))
+            .toList();
     final s = _prefs.getString(_kSettings);
     if (s != null) _applySettings(jsonDecode(s) as Map<String, dynamic>);
     updatedAt =
@@ -163,6 +201,18 @@ class AppStore extends ChangeNotifier {
     _touch();
   }
 
+  Future<void> _saveExtra() async {
+    await _prefs.setString(
+        _kExtra, jsonEncode(extraIncome.map((e) => e.toJson()).toList()));
+    _touch();
+  }
+
+  Future<void> _saveCats() async {
+    await _prefs.setString(_kCats,
+        jsonEncode(customCategories.map((e) => e.toJson()).toList()));
+    _touch();
+  }
+
   Future<void> _saveSettings() async {
     await _prefs.setString(_kSettings, jsonEncode(_settingsJson));
     _touch();
@@ -185,6 +235,8 @@ class AppStore extends ChangeNotifier {
         'expenses': expenses.map((e) => e.toJson()).toList(),
         'wallet': wallet.map((e) => e.toJson()).toList(),
         'incomes': incomes,
+        'extraIncome': extraIncome.map((e) => e.toJson()).toList(),
+        'categories': customCategories.map((e) => e.toJson()).toList(),
         'settings': _settingsJson,
       };
 
@@ -192,6 +244,8 @@ class AppStore extends ChangeNotifier {
     await _prefs.setString(_kExpenses, jsonEncode(d['expenses'] ?? []));
     await _prefs.setString(_kWallet, jsonEncode(d['wallet'] ?? []));
     await _prefs.setString(_kIncomes, jsonEncode(d['incomes'] ?? {}));
+    await _prefs.setString(_kExtra, jsonEncode(d['extraIncome'] ?? []));
+    await _prefs.setString(_kCats, jsonEncode(d['categories'] ?? []));
     await _prefs.setString(_kSettings, jsonEncode(d['settings'] ?? {}));
     await _prefs.setString(
         _kUpdated, (d['updatedAt'] ?? DateTime.now().toIso8601String()) as String);
@@ -324,7 +378,12 @@ class AppStore extends ChangeNotifier {
   }
 
   // ---------------- المحفظة ----------------
-  double get walletBalance => wallet.fold(0.0, (s, t) => s + t.amount);
+  /// رصيد الدولار
+  double get walletBalance => holding(Asset.usd);
+
+  double holding(Asset a) => wallet
+      .where((t) => t.asset == a.key)
+      .fold(0.0, (s, t) => s + t.amount);
 
   void addWalletTx(WalletTx t) {
     wallet.add(t);
@@ -336,7 +395,170 @@ class AppStore extends ChangeNotifier {
   void deleteWalletTx(String id) {
     wallet.removeWhere((x) => x.id == id);
     _saveWallet();
+    if (extraIncome.any((e) => e.txId == id)) {
+      extraIncome.removeWhere((e) => e.txId == id);
+      _saveExtra();
+    }
     notifyListeners();
+  }
+
+  /// يعيد حركة محذوفة (مع دخل البيع المرتبط بها)
+  void restoreWalletTx(WalletTx t, IncomeEntry? linked) {
+    wallet.add(t);
+    _sort();
+    _saveWallet();
+    if (linked != null) {
+      extraIncome.add(linked);
+      _saveExtra();
+    }
+    notifyListeners();
+  }
+
+  IncomeEntry? incomeForTx(String txId) {
+    for (final e in extraIncome) {
+      if (e.txId == txId) return e;
+    }
+    return null;
+  }
+
+  /// شراء أو بيع أصل بسعر محدد (بعملة المصاريف).
+  /// عند البيع يُضاف الثمن للميزانية كدخل إضافي.
+  void trade(Asset a,
+      {required bool buy,
+      required double qty,
+      required double price,
+      String note = ''}) {
+    final id = newId();
+    final total = qty * price;
+    wallet.add(WalletTx(
+      id: id,
+      amount: buy ? qty : -qty,
+      date: DateTime.now(),
+      note: note,
+      asset: a.key,
+      price: price,
+      total: total,
+    ));
+    _sort();
+    _saveWallet();
+    if (!buy) {
+      extraIncome.add(IncomeEntry(
+        id: '${id}_inc',
+        amount: total,
+        date: DateTime.now(),
+        note: 'بيع ${a == Asset.usd ? '${_q(qty)} دولار' : '${_q(qty)} غ ${a.label}'}',
+        txId: id,
+      ));
+      _saveExtra();
+    }
+    notifyListeners();
+  }
+
+  String _q(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+
+  // ---------------- دخل إضافي ----------------
+  void addExtraIncome(double amount, String note, DateTime date) {
+    extraIncome.add(
+        IncomeEntry(id: newId(), amount: amount, date: date, note: note));
+    _saveExtra();
+    notifyListeners();
+  }
+
+  void deleteExtraIncome(String id) {
+    extraIncome.removeWhere((e) => e.id == id);
+    _saveExtra();
+    notifyListeners();
+  }
+
+  // ---------------- الفئات ----------------
+  void addCategory(String name, int icon, int color, bool essential) {
+    customCategories = [
+      ...customCategories,
+      Category('c${newId()}', name, kCategoryIcons[icon], kCategoryColors[color],
+          essential,
+          custom: true),
+    ];
+    _saveCats();
+    notifyListeners();
+  }
+
+  /// يحذف الفئة وينقل مصاريفها إلى "أخرى"
+  void deleteCategory(String id) {
+    customCategories = customCategories.where((c) => c.id != id).toList();
+    var moved = false;
+    for (var i = 0; i < expenses.length; i++) {
+      if (expenses[i].categoryId == id) {
+        expenses[i] = expenses[i].copyWith(categoryId: 'other');
+        moved = true;
+      }
+    }
+    if (moved) _saveExpenses();
+    _saveCats();
+    notifyListeners();
+  }
+
+  int expenseCountFor(String catId) =>
+      expenses.where((e) => e.categoryId == catId).length;
+
+  // ---------------- الأسعار ----------------
+  Future<void> refreshRates() async {
+    if (ratesLoading) return;
+    ratesLoading = true;
+    notifyListeners();
+    final r = await RatesService.fetch();
+    if (r != null) {
+      rates = r;
+      await _prefs.setString(_kRates, jsonEncode(r.toJson()));
+    }
+    ratesLoading = false;
+    notifyListeners();
+  }
+
+  bool get isSyp => currency == 'ل.س' || currency == 'ل.س ق';
+
+  /// معامل التحويل من الليرة القديمة إلى عملة المصاريف
+  double? get _fromOldSyp {
+    if (currency == 'ل.س') return 0.01;
+    if (currency == 'ل.س ق') return 1;
+    if (currency == '\$' && rates != null) return 1 / rates!.usdBuy;
+    return null;
+  }
+
+  /// سعر السوق للوحدة بعملة المصاريف.
+  /// buy=true: السعر الذي تشتري به (مبيع الصرّاف)، false: الذي تبيع به (شراء الصرّاف)
+  double? marketPrice(Asset a, {required bool buy}) {
+    if (a == Asset.usd && currency == '\$') return 1;
+    final r = rates;
+    if (r == null) return null;
+    final f = _fromOldSyp;
+    if (f == null) return null;
+    final old = switch (a) {
+      Asset.usd => buy ? r.usdSell : r.usdBuy,
+      Asset.gold21 => buy ? r.g21Sell : r.g21Buy,
+      Asset.gold18 => buy ? r.g18Sell : r.g18Buy,
+    };
+    if (currency == '\$' && a != Asset.usd) return old / r.usdBuy;
+    return old * f;
+  }
+
+  /// قيمة أصل حالياً بعملة المصاريف (بسعر البيع للصرّاف)
+  double? holdingValue(Asset a) {
+    final q = holding(a);
+    if (q == 0) return 0;
+    final p = marketPrice(a, buy: false);
+    return p == null ? null : q * p;
+  }
+
+  /// مجموع قيمة المدخرات بعملة المصاريف (null إن لم تتوفر الأسعار)
+  double? get totalSavingsValue {
+    double sum = 0;
+    for (final a in Asset.values) {
+      final v = holdingValue(a);
+      if (v == null) return null;
+      sum += v;
+    }
+    return sum;
   }
 
   // ---------------- الدخل والإعدادات ----------------
@@ -379,6 +601,8 @@ class AppStore extends ChangeNotifier {
     expenses.clear();
     wallet.clear();
     incomes.clear();
+    extraIncome.clear();
+    customCategories = [];
     final c = _prefs.getString(_kCloud);
     await _prefs.clear();
     if (c != null) await _prefs.setString(_kCloud, c);
@@ -428,9 +652,18 @@ class AppStore extends ChangeNotifier {
     final isFuture = DateTime(month.year, month.month)
         .isAfter(DateTime(now.year, now.month));
     final days = isFuture ? 0 : (isCurrent ? now.day : daysInMonth(month));
+    bool inMonth(DateTime d) => d.year == month.year && d.month == month.month;
+    final extra = extraIncome
+        .where((e) => inMonth(e.date))
+        .fold<double>(0, (s, e) => s + e.amount);
+    final invested = wallet
+        .where((t) => t.isTrade && t.isBuy && inMonth(t.date))
+        .fold<double>(0, (s, t) => s + t.total!);
     return MonthStats(
       month: month,
-      income: incomeFor(month),
+      baseIncome: incomeFor(month),
+      extraIncome: extra,
+      invested: invested,
       spent: spent,
       essential: ess,
       waste: waste,

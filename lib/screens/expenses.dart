@@ -72,7 +72,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                       () => setState(() => _filter = _filter == 2 ? 0 : 2),
                       color: AppColors.warning),
                   const SizedBox(width: 6),
-                  for (final c in kCategories)
+                  for (final c in allCategories)
                     _chip(c.name, _cat == c.id,
                         () => setState(() => _cat = _cat == c.id ? null : c.id),
                         color: c.color),

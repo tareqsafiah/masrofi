@@ -102,9 +102,9 @@ class _HomeShellState extends State<HomeShell> {
               selectedIcon: Icon(Icons.local_fire_department_rounded),
               label: 'الهدر'),
           NavigationDestination(
-              icon: Icon(Icons.account_balance_wallet_outlined),
-              selectedIcon: Icon(Icons.account_balance_wallet_rounded),
-              label: 'المحفظة'),
+              icon: Icon(Icons.savings_outlined),
+              selectedIcon: Icon(Icons.savings_rounded),
+              label: 'المدخرات'),
           NavigationDestination(
               icon: Icon(Icons.lightbulb_outline_rounded),
               selectedIcon: Icon(Icons.lightbulb_rounded),

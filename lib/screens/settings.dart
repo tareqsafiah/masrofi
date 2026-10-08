@@ -7,9 +7,16 @@ import '../models.dart';
 import '../store.dart';
 import '../theme.dart';
 import '../widgets.dart';
+import 'categories.dart';
 import 'cloud_setup.dart';
 
-const kCurrencies = ['\$', 'ل.س', '€', '£', 'ر.س', 'د.إ', 'TL'];
+const kCurrencies = ['\$', 'ل.س', 'ل.س ق', '€', '£', 'ر.س', 'د.إ', 'TL'];
+
+String currencyLabel(String c) => switch (c) {
+      'ل.س' => 'ليرة سورية جديدة',
+      'ل.س ق' => 'ليرة سورية قديمة',
+      _ => c,
+    };
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -78,7 +85,7 @@ class SettingsScreen extends StatelessWidget {
               children: [
                 for (final c in kCurrencies)
                   ChoiceChip(
-                    label: Text(c),
+                    label: Text(currencyLabel(c)),
                     selected: c == cur,
                     onSelected: (_) => s.updateSettings(currency: c),
                     selectedColor: AppColors.primary.withValues(alpha: 0.2),
@@ -95,6 +102,18 @@ class SettingsScreen extends StatelessWidget {
             padding: EdgeInsets.fromLTRB(6, 8, 6, 0),
             child: Text('محفظة الادخار تبقى دائماً بالدولار.',
                 style: TextStyle(color: AppColors.muted, fontSize: 12.5)),
+          ),
+          const SectionTitle('المصاريف'),
+          AppCard(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: _row(
+              context,
+              icon: Icons.category_rounded,
+              title: 'فئات المصاريف',
+              value: '${customCategories.length} مضافة',
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const CategoriesScreen())),
+            ),
           ),
           const SectionTitle('قاعدة البيانات'),
           _CloudCard(store: s),
@@ -413,7 +432,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             Wrap(spacing: 8, runSpacing: 8, children: [
               for (final c in kCurrencies)
                 ChoiceChip(
-                  label: Text(c),
+                  label: Text(currencyLabel(c)),
                   selected: c == _cur,
                   onSelected: (_) => setState(() => _cur = c),
                   selectedColor: AppColors.primary.withValues(alpha: 0.2),
@@ -424,6 +443,26 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       borderRadius: BorderRadius.circular(12)),
                 ),
             ]),
+            if (_cur == 'ل.س' || _cur == 'ل.س ق') ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.info.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Row(children: [
+                  Icon(Icons.currency_exchange_rounded,
+                      color: AppColors.info, size: 20),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                        'ستتمكن من شراء الدولار والذهب بأسعار موقع "الليرة اليوم" مباشرة، مع إمكانية تعديل السعر.',
+                        style: TextStyle(fontSize: 13, height: 1.5)),
+                  ),
+                ]),
+              ),
+            ],
             const SizedBox(height: 20),
             AmountField(
                 controller: _income, label: 'دخلك الشهري', suffix: _cur),

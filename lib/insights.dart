@@ -220,13 +220,15 @@ List<Insight> buildInsights(AppStore s) {
 
   // ---- صندوق الطوارئ ----
   final avg = s.avgMonthlySpend;
-  if (avg > 0 && s.currency == '\$') {
-    final months = s.walletBalance / avg;
+  final sv = s.totalSavingsValue ??
+      (s.currency == '\$' ? s.walletBalance : null);
+  if (avg > 0 && sv != null) {
+    final months = sv / avg;
     if (months < 3) {
       out.add(Insight(
         InsightLevel.info,
         'مدّخراتك تغطي ${months.toStringAsFixed(1)} شهر من المصاريف',
-        'الهدف الآمن هو 3–6 أشهر. تحتاج ${usd(avg * 3 - s.walletBalance)} إضافية للوصول لـ 3 أشهر.',
+        'الهدف الآمن هو 3–6 أشهر. تحتاج ${f(avg * 3 - sv)} إضافية للوصول لـ 3 أشهر.',
         Icons.shield_rounded,
       ));
     } else {

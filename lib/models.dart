@@ -55,25 +55,39 @@ class Expense {
       );
 }
 
-/// حركة في محفظة الدولار (موجب = إيداع، سالب = سحب)
+/// حركة في المدخرات (دولار أو ذهب).
+/// amount: الكمية (دولار أو غرام)، موجبة للشراء/الإيداع وسالبة للبيع/السحب.
+/// total: المبلغ المدفوع/المقبوض بعملة المصاريف (إن كانت عملية شراء أو بيع).
 class WalletTx {
   final String id;
   final double amount;
   final DateTime date;
   final String note;
+  final String asset; // usd | g21 | g18
+  final double? price; // سعر الوحدة بعملة المصاريف
+  final double? total;
 
   WalletTx({
     required this.id,
     required this.amount,
     required this.date,
     this.note = '',
+    this.asset = 'usd',
+    this.price,
+    this.total,
   });
+
+  bool get isTrade => total != null;
+  bool get isBuy => amount >= 0;
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'amount': amount,
         'date': date.toIso8601String(),
         'note': note,
+        'asset': asset,
+        if (price != null) 'price': price,
+        if (total != null) 'total': total,
       };
 
   factory WalletTx.fromJson(Map<String, dynamic> j) => WalletTx(
@@ -81,6 +95,42 @@ class WalletTx {
         amount: (j['amount'] as num).toDouble(),
         date: DateTime.parse(j['date'] as String),
         note: (j['note'] ?? '') as String,
+        asset: (j['asset'] ?? 'usd') as String,
+        price: (j['price'] as num?)?.toDouble(),
+        total: (j['total'] as num?)?.toDouble(),
+      );
+}
+
+/// دخل إضافي يُضاف للميزانية (مثل ثمن بيع دولار أو ذهب)
+class IncomeEntry {
+  final String id;
+  final double amount;
+  final DateTime date;
+  final String note;
+  final String? txId; // حركة المدخرات المرتبطة
+
+  IncomeEntry({
+    required this.id,
+    required this.amount,
+    required this.date,
+    this.note = '',
+    this.txId,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'amount': amount,
+        'date': date.toIso8601String(),
+        'note': note,
+        if (txId != null) 'tx': txId,
+      };
+
+  factory IncomeEntry.fromJson(Map<String, dynamic> j) => IncomeEntry(
+        id: j['id'] as String,
+        amount: (j['amount'] as num).toDouble(),
+        date: DateTime.parse(j['date'] as String),
+        note: (j['note'] ?? '') as String,
+        txId: j['tx'] as String?,
       );
 }
 
@@ -90,10 +140,74 @@ class Category {
   final IconData icon;
   final Color color;
   final bool defaultEssential;
+  final bool custom;
 
   const Category(
-      this.id, this.name, this.icon, this.color, this.defaultEssential);
+      this.id, this.name, this.icon, this.color, this.defaultEssential,
+      {this.custom = false});
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'icon': kCategoryIcons.indexOf(icon),
+        'color': kCategoryColors.indexOf(color),
+        'ess': defaultEssential,
+      };
+
+  factory Category.fromJson(Map<String, dynamic> j) {
+    final ii = (j['icon'] ?? 0) as int;
+    final ci = (j['color'] ?? 0) as int;
+    return Category(
+      j['id'] as String,
+      j['name'] as String,
+      kCategoryIcons[ii.clamp(0, kCategoryIcons.length - 1)],
+      kCategoryColors[ci.clamp(0, kCategoryColors.length - 1)],
+      (j['ess'] ?? true) as bool,
+      custom: true,
+    );
+  }
 }
+
+/// الأيقونات المتاحة للفئات الجديدة
+const kCategoryIcons = <IconData>[
+  Icons.label_rounded,
+  Icons.local_cafe_rounded,
+  Icons.local_gas_station_rounded,
+  Icons.phone_iphone_rounded,
+  Icons.wifi_rounded,
+  Icons.electric_bolt_rounded,
+  Icons.water_drop_rounded,
+  Icons.child_care_rounded,
+  Icons.pets_rounded,
+  Icons.fitness_center_rounded,
+  Icons.content_cut_rounded,
+  Icons.checkroom_rounded,
+  Icons.build_rounded,
+  Icons.flight_rounded,
+  Icons.local_taxi_rounded,
+  Icons.medication_rounded,
+  Icons.menu_book_rounded,
+  Icons.volunteer_activism_rounded,
+  Icons.family_restroom_rounded,
+  Icons.weekend_rounded,
+  Icons.devices_rounded,
+  Icons.local_grocery_store_rounded,
+  Icons.cake_rounded,
+  Icons.sports_soccer_rounded,
+];
+
+const kCategoryColors = <Color>[
+  Color(0xFF2ED6A0),
+  Color(0xFF5B8CFF),
+  Color(0xFFFFB547),
+  Color(0xFFFF6B9A),
+  Color(0xFF9C7CFF),
+  Color(0xFF4FC3F7),
+  Color(0xFFFF8A5B),
+  Color(0xFFE879F9),
+  Color(0xFFFACC15),
+  Color(0xFF94A3B8),
+];
 
 const List<Category> kCategories = [
   Category('food', 'طعام ومشتريات', Icons.shopping_basket_rounded,
@@ -120,5 +234,15 @@ const List<Category> kCategories = [
   Category('other', 'أخرى', Icons.more_horiz_rounded, Color(0xFFA3A3A3), true),
 ];
 
+/// الفئات التي أضافها المستخدم (يملؤها AppStore)
+List<Category> customCategories = [];
+
+/// كل الفئات: الثابتة ثم المضافة، و"أخرى" دائماً في الآخر
+List<Category> get allCategories => [
+      ...kCategories.where((c) => c.id != 'other'),
+      ...customCategories,
+      kCategories.last,
+    ];
+
 Category categoryById(String id) =>
-    kCategories.firstWhere((c) => c.id == id, orElse: () => kCategories.last);
+    allCategories.firstWhere((c) => c.id == id, orElse: () => kCategories.last);
