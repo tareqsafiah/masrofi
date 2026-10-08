@@ -1,6 +1,9 @@
 name: Update Rates
 
 on:
+  push:
+    branches: [main]
+    paths: ['tool/fetch_rates.py', '.github/workflows/rates.yml']
   schedule:
     - cron: '*/30 * * * *'
   workflow_dispatch:
