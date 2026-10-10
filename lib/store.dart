@@ -372,6 +372,52 @@ class AppStore extends ChangeNotifier {
     return restored;
   }
 
+  /// اسم المستخدم المسجّل (فارغ إن لم يكن هناك حساب)
+  String get username => cloud?.username ?? '';
+
+  /// إنشاء حساب: يُدخل رمز الوصول مرة واحدة فقط ويُحفظ مشفّراً بكلمة المرور.
+  /// إن كان الجهاز مربوطاً سابقاً يُستخدم رمزه وكلمة سر بياناته تلقائياً.
+  Future<bool> createAccount({
+    required String username,
+    required String password,
+    String token = '',
+    String? oldDataPassword,
+    String owner = kDefaultOwner,
+    String repo = kDefaultRepo,
+  }) async {
+    final u = username.trim();
+    final tok = token.trim().isNotEmpty ? token.trim() : (cloud?.token ?? '');
+    if (tok.isEmpty) throw CloudException('أدخل رمز الوصول (Token)');
+    final o = cloud?.owner ?? owner;
+    final r = cloud?.repo ?? repo;
+    final dataPass = (oldDataPassword != null && oldDataPassword.isNotEmpty)
+        ? oldDataPassword
+        : (cloud?.password ?? password);
+
+    // اسم المستخدم محجوز؟ نسمح بالتحديث فقط لصاحب كلمة المرور
+    final existing = await Accounts.fetch(o, r, u, token: tok);
+    if (existing != null &&
+        await Accounts.unlock(existing.$1, u, password) == null) {
+      throw CloudException('اسم المستخدم مستخدم مسبقاً، اختر اسماً آخر');
+    }
+    final cfg = CloudConfig(
+        owner: o, repo: r, token: tok, password: dataPass, username: u);
+    final restored = await connectCloud(cfg); // يتحقق من الرمز وكلمة سر البيانات
+    await Accounts.save(cfg, password, sha: existing?.$2);
+    return restored;
+  }
+
+  /// تسجيل الدخول باسم المستخدم وكلمة المرور فقط
+  Future<bool> login(String username, String password,
+      {String owner = kDefaultOwner, String repo = kDefaultRepo}) async {
+    const bad = 'اسم المستخدم أو كلمة المرور غير صحيحة';
+    final acc = await Accounts.fetch(owner, repo, username);
+    if (acc == null) throw CloudException(bad);
+    final cfg = await Accounts.unlock(acc.$1, username, password);
+    if (cfg == null) throw CloudException(bad);
+    return connectCloud(cfg);
+  }
+
   Future<void> disconnectCloud() async {
     _debounce?.cancel();
     cloud = null;

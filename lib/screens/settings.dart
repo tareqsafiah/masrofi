@@ -215,33 +215,56 @@ class _CloudCard extends StatelessWidget {
   final AppStore store;
   const _CloudCard({required this.store});
 
+  Widget _prompt(BuildContext context,
+      {required IconData icon,
+      required Color color,
+      required String title,
+      required String body,
+      required AuthMode mode}) {
+    return AppCard(
+      onTap: () => openAuth(context, mode: mode),
+      child: Row(children: [
+        Icon(icon, color: color, size: 30),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800, fontSize: 15)),
+              const SizedBox(height: 4),
+              Text(body,
+                  style: const TextStyle(
+                      color: AppColors.muted, fontSize: 13, height: 1.5)),
+            ],
+          ),
+        ),
+        const Icon(Icons.chevron_left_rounded, color: AppColors.muted),
+      ]),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = store;
     if (!s.cloudEnabled) {
-      return AppCard(
-        onTap: () => openCloudSetup(context),
-        child: const Row(children: [
-          Icon(Icons.cloud_upload_rounded, color: AppColors.warning, size: 30),
-          SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('اربط قاعدة البيانات',
-                    style:
-                        TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                SizedBox(height: 4),
-                Text(
-                    'بياناتك الآن محفوظة في المتصفح فقط. اربطها بقاعدة بيانات مشفّرة حتى لا تضيع.',
-                    style: TextStyle(
-                        color: AppColors.muted, fontSize: 13, height: 1.5)),
-              ],
-            ),
-          ),
-          Icon(Icons.chevron_left_rounded, color: AppColors.muted),
-        ]),
-      );
+      return Column(children: [
+        _prompt(context,
+            icon: Icons.login_rounded,
+            color: AppColors.primary,
+            title: 'تسجيل الدخول',
+            body: 'لديك حساب؟ ادخل باسم المستخدم وكلمة المرور لتحميل بياناتك.',
+            mode: AuthMode.login),
+        const SizedBox(height: 10),
+        _prompt(context,
+            icon: Icons.person_add_alt_1_rounded,
+            color: AppColors.warning,
+            title: 'إنشاء حساب',
+            body:
+                'بياناتك الآن في المتصفح فقط. أنشئ حساباً لحفظها مشفّرة حتى لا تضيع.',
+            mode: AuthMode.create),
+      ]);
     }
     final (label, color) = switch (s.syncState) {
       SyncState.ok => ('محفوظ ومتزامن', AppColors.primary),
@@ -250,25 +273,57 @@ class _CloudCard extends StatelessWidget {
       SyncState.off => ('غير مربوط', AppColors.muted),
     };
     final t = s.lastSync;
+    final hasAccount = s.username.isNotEmpty;
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Icon(Icons.cloud_done_rounded, color: color),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(label,
-                  style: TextStyle(
-                      color: color, fontWeight: FontWeight.w800, fontSize: 15)),
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+              child: Text(
+                  hasAccount ? s.username.characters.first.toUpperCase() : '؟',
+                  style: const TextStyle(
+                      color: AppColors.primary, fontWeight: FontWeight.w800)),
             ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(hasAccount ? s.username : 'بدون حساب',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w800, fontSize: 15)),
+                  const SizedBox(height: 2),
+                  Text(label,
+                      style: TextStyle(
+                          color: color,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12.5)),
+                ],
+              ),
+            ),
+            Icon(Icons.cloud_done_rounded, color: color),
           ]),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(
-              '${s.cloud!.owner}/${s.cloud!.repo} · مشفّرة AES-256'
-              '${t == null ? '' : '\nآخر مزامنة: ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}'}',
+              'مشفّرة AES-256'
+              '${t == null ? '' : ' · آخر مزامنة ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}'}',
               style: const TextStyle(
                   color: AppColors.muted, fontSize: 12.5, height: 1.6)),
+          if (!hasAccount) ...[
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: () => openAuth(context, mode: AuthMode.create),
+              icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+              label: const Text('أنشئ اسم مستخدم وكلمة مرور'),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+                'لتسجيل الدخول لاحقاً بدون رمز الوصول. سيُستخدم الرمز المحفوظ تلقائياً.',
+                style: TextStyle(color: AppColors.muted, fontSize: 12)),
+          ],
           const SizedBox(height: 12),
           Row(children: [
             Expanded(
@@ -281,17 +336,14 @@ class _CloudCard extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: () => openCloudSetup(context),
-                icon: const Icon(Icons.tune_rounded, size: 18),
-                label: const Text('الإعدادات'),
+                style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.danger),
+                onPressed: () => s.disconnectCloud(),
+                icon: const Icon(Icons.logout_rounded, size: 18),
+                label: Text(hasAccount ? 'تسجيل الخروج' : 'فصل'),
               ),
             ),
           ]),
-          TextButton(
-            onPressed: () => s.disconnectCloud(),
-            child: const Text('فصل قاعدة البيانات',
-                style: TextStyle(color: AppColors.danger)),
-          ),
         ],
       ),
     );
@@ -531,6 +583,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             const Text(
                 'تابع مصاريفك، اكتشف الهدر، وابنِ مدّخراتك بالدولار. لنبدأ بخطوتين سريعتين.',
                 style: TextStyle(color: AppColors.muted, fontSize: 15, height: 1.6)),
+            const SizedBox(height: 20),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+              ),
+              onPressed: () => openAuth(context, mode: AuthMode.login),
+              icon: const Icon(Icons.login_rounded),
+              label: const Text('لدي حساب: تسجيل الدخول'),
+            ),
             const SizedBox(height: 30),
             const Text('عملة مصاريفك ودخلك',
                 style: TextStyle(fontWeight: FontWeight.w700)),
@@ -609,17 +672,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 s.updateSettings(onboarded: true);
               },
               child: const Text('ابدأ'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(52),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-              ),
-              onPressed: () => openCloudSetup(context, restore: true),
-              icon: const Icon(Icons.cloud_download_rounded),
-              label: const Text('لدي بيانات سابقة: استعادة من قاعدة البيانات'),
             ),
           ],
         ),
