@@ -153,8 +153,10 @@ class _HeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final saved = m.saved;
-    final positive = saved >= 0;
+    // المتبقي من الراتب = الدخل − المصاريف − ما حُوّل للمدخرات (دولار/ذهب)
+    final left = m.cashLeft;
+    final positive = left >= 0;
+    final used = m.income > 0 ? (m.spent + m.invested) / m.income : 0.0;
     return AppCard(
       padding: const EdgeInsets.all(22),
       gradient: const LinearGradient(
@@ -165,7 +167,7 @@ class _HeroCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('المدّخر هذا الشهر',
+          Text(positive ? 'المتبقي معك من الراتب' : 'تجاوزت دخلك هذا الشهر بـ',
               style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.75), fontSize: 14)),
           const SizedBox(height: 6),
@@ -176,7 +178,7 @@ class _HeroCard extends StatelessWidget {
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: AlignmentDirectional.centerStart,
-                  child: Text(money(saved, currency, decimals: false),
+                  child: Text(money(left.abs(), currency, decimals: false),
                       style: const TextStyle(
                           fontSize: 38,
                           fontWeight: FontWeight.w900,
@@ -195,7 +197,9 @@ class _HeroCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    '${positive ? '▲' : '▼'} ${pct(m.savingsRate.abs())}',
+                    positive
+                        ? 'متبقٍ ${pct(left / m.income)}'
+                        : '▼ ${pct(left.abs() / m.income)}',
                     style: TextStyle(
                         color: positive
                             ? const Color(0xFFB7FFE6)
@@ -209,8 +213,8 @@ class _HeroCard extends StatelessWidget {
           const SizedBox(height: 18),
           if (m.income > 0) ...[
             ProgressBar(
-              value: m.consumptionRate,
-              color: m.consumptionRate > 1
+              value: used,
+              color: used > 1
                   ? AppColors.danger
                   : Colors.white.withValues(alpha: 0.9),
             ),
