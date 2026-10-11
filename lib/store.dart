@@ -18,6 +18,9 @@ class MonthStats {
   final double extraIncome;
   final double invested;
   final double spent;
+
+  /// المصاريف الثابتة (إيجار، فواتير، أقساط...) ضمن المصاريف
+  final double fixed;
   final double essential;
   final double waste;
   final Map<String, double> byCategory;
@@ -30,6 +33,7 @@ class MonthStats {
     required this.extraIncome,
     required this.invested,
     required this.spent,
+    this.fixed = 0,
     required this.essential,
     required this.waste,
     required this.byCategory,
@@ -42,9 +46,18 @@ class MonthStats {
   /// النقد المتبقي بعد المصاريف وشراء المدخرات
   double get cashLeft => income - spent - invested;
   double get savingsRate => income > 0 ? saved / income : 0;
-  double get dailyAvg => daysCounted > 0 ? spent / daysCounted : 0;
+  /// المصاريف اليومية المتغيرة (بدون الثابتة)
+  double get variable => spent - fixed;
+
+  /// معدل الصرف اليومي للمصاريف المتغيرة
+  double get dailyAvg => daysCounted > 0 ? variable / daysCounted : 0;
   double get wasteRatio => spent > 0 ? waste / spent : 0;
-  double get projected => dailyAvg * daysInMonth(month);
+
+  /// المصاريف المتوقعة بنهاية الشهر: الثابتة كما هي + المتغيرة بنفس المعدل
+  double get projected => fixed + dailyAvg * daysInMonth(month);
+
+  /// المتوقع أن يبقى من الراتب بنهاية الشهر
+  double get projectedLeft => income - invested - projected;
 
   /// نسبة الدخل التي تذهب للمصاريف
   double get consumptionRate => income > 0 ? spent / income : 0;
@@ -901,10 +914,11 @@ class AppStore extends ChangeNotifier {
 
   MonthStats statsFor(DateTime month) {
     final list = expensesIn(month);
-    double spent = 0, ess = 0, waste = 0;
+    double spent = 0, ess = 0, waste = 0, fixed = 0;
     final byCat = <String, double>{};
     for (final e in list) {
       spent += e.amount;
+      if (kFixedCategoryIds.contains(e.categoryId)) fixed += e.amount;
       if (e.essential) {
         ess += e.amount;
       } else {
@@ -930,6 +944,7 @@ class AppStore extends ChangeNotifier {
       extraIncome: extra,
       invested: invested,
       spent: spent,
+      fixed: fixed,
       essential: ess,
       waste: waste,
       byCategory: byCat,

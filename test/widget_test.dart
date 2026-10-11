@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:masrofi/cloud.dart';
 import 'package:masrofi/debt_plan.dart';
 import 'package:masrofi/format.dart';
+import 'package:masrofi/store.dart';
 import 'package:masrofi/widgets.dart';
 
 void main() {
@@ -81,5 +82,24 @@ void main() {
       expect(c?.username, 'tareq');
       expect(await Accounts.unlock(enc, 'tareq', 'nope-nope'), isNull);
     });
+  });
+
+  test('التوقّع يحسب المصاريف الثابتة مرة واحدة', () {
+    final m = MonthStats(
+      month: DateTime(2026, 10),
+      baseIncome: 3000,
+      extraIncome: 0,
+      invested: 200,
+      spent: 1500,
+      fixed: 1000,
+      essential: 1500,
+      waste: 0,
+      byCategory: const {},
+      daysCounted: 10,
+      count: 3,
+    );
+    expect(m.dailyAvg, 50);
+    expect(m.projected, 1000 + 50 * 31);
+    expect(m.projectedLeft, 3000 - 200 - 2550);
   });
 }

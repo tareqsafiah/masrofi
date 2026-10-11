@@ -61,6 +61,7 @@ class DashboardScreen extends StatelessWidget {
                 child: _StatTile(
                   icon: Icons.today_rounded,
                   label: 'معدل الصرف اليومي',
+                  sub: m.fixed > 0 ? 'بدون الثابتة' : null,
                   value: money(m.dailyAvg, cur, decimals: false),
                   color: AppColors.info,
                 ),
@@ -364,34 +365,53 @@ class _ProjectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cur = store.currency;
-    final limit =
-        store.monthlyBudget > 0 ? store.monthlyBudget : m.income;
-    final over = limit > 0 && m.projected > limit;
+    String f(double v) => money(v, cur, decimals: false);
+    final hasIncome = m.income > 0;
+    final left = m.projectedLeft;
+    final over = hasIncome && left < 0;
+    final budget = store.monthlyBudget;
+    final overBudget = budget > 0 && m.projected > budget;
+    final bad = over || overBudget;
+
+    final title = !hasIncome
+        ? 'متوقع أن تصرف هذا الشهر ${f(m.projected)}'
+        : over
+            ? 'متوقع أن تتجاوز دخلك آخر الشهر بـ ${f(-left)}'
+            : 'متوقع أن يبقى معك آخر الشهر ${f(left)}';
+    final lines = <(String, bool)>[
+      ('إذا استمررت بنفس معدل صرفك (${f(m.dailyAvg)} يومياً)', false),
+      if (m.fixed > 0)
+        ('المصاريف الثابتة كالإيجار والفواتير والأقساط (${f(m.fixed)}) محسوبة مرة واحدة', false),
+      if (overBudget) ('ستتجاوز ميزانيتك بـ ${f(m.projected - budget)}', true),
+      if (!bad && hasIncome) ('أنت ضمن دخلك — أحسنت', false),
+    ];
     return AppCard(
       padding: const EdgeInsets.all(16),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(over ? Icons.trending_up_rounded : Icons.insights_rounded,
-              color: over ? AppColors.danger : AppColors.info),
+          Icon(bad ? Icons.trending_down_rounded : Icons.insights_rounded,
+              color: bad ? AppColors.danger : AppColors.primary),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('المتوقع بنهاية الشهر: ${money(m.projected, cur, decimals: false)}',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 14.5)),
-                const SizedBox(height: 3),
-                Text(
-                  limit <= 0
-                      ? 'حسب معدل صرفك اليومي الحالي'
-                      : over
-                          ? 'ستتجاوز ${store.monthlyBudget > 0 ? 'الميزانية' : 'الدخل'} بـ ${money(m.projected - limit, cur, decimals: false)}'
-                          : 'ضمن ${store.monthlyBudget > 0 ? 'الميزانية' : 'الدخل'} — أحسنت',
-                  style: TextStyle(
-                      color: over ? AppColors.danger : AppColors.muted,
-                      fontSize: 12.5),
-                ),
+                Text(title,
+                    style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14.5,
+                        color: over ? AppColors.danger : AppColors.text)),
+                const SizedBox(height: 4),
+                for (final (text, warn) in lines)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(text,
+                        style: TextStyle(
+                            color: warn ? AppColors.danger : AppColors.muted,
+                            fontSize: 12.5,
+                            height: 1.5)),
+                  ),
               ],
             ),
           ),

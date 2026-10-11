@@ -209,6 +209,9 @@ const kCategoryColors = <Color>[
   Color(0xFF94A3B8),
 ];
 
+/// مصاريف ثابتة تُدفع مرة في الشهر، فلا تُضرب بعدد الأيام عند التوقّع
+const kFixedCategoryIds = {'rent', 'bills', 'debt', 'subscriptions', 'education'};
+
 const List<Category> kCategories = [
   Category('food', 'طعام ومشتريات', Icons.shopping_basket_rounded,
       Color(0xFF2ED6A0), true),
