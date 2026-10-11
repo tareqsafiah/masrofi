@@ -635,6 +635,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             const SizedBox(height: 20),
             AmountField(
                 controller: _income, label: 'دخلك الشهري', suffix: _cur),
+            if (_isSyp)
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _income,
+                builder: (_, v, __) {
+                  final inc = parseAmount(v.text) ?? 0;
+                  final rate = parseAmount(_rate.text) ?? _siteRate(store) ?? 0;
+                  if (inc <= 0 || rate <= 0) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsetsDirectional.only(top: 6, start: 4),
+                    child: Text(
+                        'يعادل تقريباً ${usd(inc / rate)} بسعر ${_fmtRate(rate)} $_cur للدولار',
+                        style: const TextStyle(
+                            color: AppColors.muted, fontSize: 12)),
+                  );
+                },
+              ),
             const SizedBox(height: 14),
             AmountField(
                 controller: _wallet,

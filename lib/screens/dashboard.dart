@@ -51,7 +51,10 @@ class DashboardScreen extends StatelessWidget {
                 alignment: AlignmentDirectional.centerStart,
                 child: MonthSwitcher()),
             const SizedBox(height: 14),
-            _HeroCard(m: m, currency: cur),
+            _HeroCard(
+                m: m,
+                currency: cur,
+                usdRate: cur == '\$' ? null : s.usdToLocal),
             const SizedBox(height: 12),
             Row(children: [
               Expanded(
@@ -149,7 +152,10 @@ class DashboardScreen extends StatelessWidget {
 class _HeroCard extends StatelessWidget {
   final MonthStats m;
   final String currency;
-  const _HeroCard({required this.m, required this.currency});
+
+  /// سعر الدولار بعملة المصاريف (null إن كانت العملة دولاراً أو السعر غير متاح)
+  final double? usdRate;
+  const _HeroCard({required this.m, required this.currency, this.usdRate});
 
   @override
   Widget build(BuildContext context) {
@@ -222,7 +228,10 @@ class _HeroCard extends StatelessWidget {
           ],
           Row(
             children: [
-              _heroItem('الدخل', money(m.income, currency, decimals: false)),
+              _heroItem('الدخل', money(m.income, currency, decimals: false),
+                  sub: usdRate != null && usdRate! > 0 && m.income > 0
+                      ? '≈ ${money(m.income / usdRate!, '\$', decimals: false)}'
+                      : null),
               Container(
                   width: 1,
                   height: 34,
@@ -255,7 +264,7 @@ class _HeroCard extends StatelessWidget {
     );
   }
 
-  Widget _heroItem(String label, String value) => Expanded(
+  Widget _heroItem(String label, String value, {String? sub}) => Expanded(
         child: Padding(
           padding: const EdgeInsetsDirectional.only(end: 12, start: 2),
           child: Column(
@@ -274,6 +283,15 @@ class _HeroCard extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         fontSize: 17)),
               ),
+              if (sub != null) ...[
+                const SizedBox(height: 2),
+                Text(sub,
+                    textDirection: TextDirection.ltr,
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.65),
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600)),
+              ],
             ],
           ),
         ),
